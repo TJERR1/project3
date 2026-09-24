@@ -67,7 +67,12 @@ boardRoutes.post('/', async (c) => {
   const board = await q(
     db.from('boards').insert({ name: body.name.trim(), owner_id: user.id }).select(BOARD_COLS).single(),
   );
-  await q(db.from('board_members').insert({ board_id: board.id, user_id: user.id, role: 'owner' }));
+  try {
+    await q(db.from('board_members').insert({ board_id: board.id, user_id: user.id, role: 'owner' }));
+  } catch (err) {
+    await db.from('boards').delete().eq('id', board.id); // compensate; ignore its own error
+    throw err;
+  }
   return c.json({ board }, 201);
 });
 
