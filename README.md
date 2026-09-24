@@ -8,7 +8,8 @@ Requires Node 22 and Docker Desktop.
 
 1. `npm install`
 2. `npm run db:start` — starts local Supabase, applies `supabase/migrations`.
-3. Copy `.dev.vars.example` to `.dev.vars` and paste the `service_role` key that `db:start` printed.
+3. Copy `.dev.vars.example` to `.dev.vars` and paste the `service_role` and `anon` keys that `db:start` printed
+   (the anon key is only used by the tests, to check the database is closed to it).
 4. `npm run dev` — http://localhost:8787
 5. `npm test`
 
@@ -29,4 +30,4 @@ Requires Node 22 and Docker Desktop.
 | Rename or delete board          | owner        |
 | Manage members                  | owner        |
 
-Row Level Security is intentionally off; the Worker is the only database client and enforces these rules.
+The Worker is the only database client and enforces these rules. Row Level Security is enabled on every table with no policies, and the `anon`/`authenticated` grants are revoked, so the public Supabase API key can't read or write anything; the Worker's service role bypasses RLS.
