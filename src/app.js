@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { createDb } from './db.js';
 import { authRoutes, requireAuth } from './auth.js';
 import { boardRoutes } from './boards.js';
+import { cardRoutes } from './cards.js';
 
 export const app = new Hono();
 
@@ -17,6 +18,7 @@ app.use('/api/boards/*', requireAuth);
 
 app.route('/api/auth', authRoutes);
 app.route('/api/boards', boardRoutes);
+app.route('/api/boards', cardRoutes);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
