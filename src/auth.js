@@ -17,8 +17,13 @@ function validateCredentials(body) {
 const randomToken = () =>
   [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
+// Secure is derived from the request itself rather than an env flag: an env
+// var is a string, so `DEV=0` or `DEV=false` would silently disable Secure in
+// production. Over https (every deployed Worker) the flag is always set; it is
+// only omitted for plain-http local dev, where browsers would drop the cookie.
 function cookieOptions(c) {
-  return { httpOnly: true, sameSite: 'Lax', path: '/', secure: !c.env.DEV };
+  const secure = new URL(c.req.url).protocol === 'https:';
+  return { httpOnly: true, sameSite: 'Lax', path: '/', secure };
 }
 
 export async function requireAuth(c, next) {

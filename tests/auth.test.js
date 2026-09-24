@@ -51,6 +51,15 @@ describe('login and session', () => {
     expect(r.setCookie).toMatch(/Path=\//);
   });
 
+  it('omits Secure over plain http (local dev) and sets it over https', async () => {
+    const plain = await api('POST', '/api/auth/login', { body: creds });
+    expect(plain.setCookie).not.toMatch(/;\s*Secure/i);
+
+    const tls = await api('POST', '/api/auth/login', { body: creds, origin: 'https://kanban.example.com' });
+    expect(tls.status).toBe(200);
+    expect(tls.setCookie).toMatch(/;\s*Secure/i);
+  });
+
   it('rejects wrong password and unknown email with 401', async () => {
     expect((await api('POST', '/api/auth/login', { body: { ...creds, password: 'password124' } })).status).toBe(401);
     expect((await api('POST', '/api/auth/login', { body: { email: 'bob@example.com', password: 'password123' } })).status).toBe(401);
