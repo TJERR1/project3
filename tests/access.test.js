@@ -31,7 +31,19 @@ describe('viewer', () => {
 
 describe('editor', () => {
   it('can write cards but not manage the board or members', async () => {
-    expect((await api('POST', A('/cards'), { body: { title: 'x', column: 'todo' }, cookie: editor })).status).toBe(201);
+    const createRes = await api('POST', A('/cards'), { body: { title: 'x', column: 'todo' }, cookie: editor });
+    expect(createRes.status).toBe(201);
+
+    const editorCardId = createRes.body.card.id;
+    const editRes = await api('PATCH', A(`/cards/${cardA}`), { body: { title: 'edited', column: 'doing', position: 0 }, cookie: editor });
+    expect(editRes.status).toBe(200);
+    expect(editRes.body.card.title).toBe('edited');
+    expect(editRes.body.card.column).toBe('doing');
+    expect(editRes.body.card.position).toBe(0);
+
+    const deleteRes = await api('DELETE', A(`/cards/${editorCardId}`), { cookie: editor });
+    expect(deleteRes.status).toBe(204);
+
     expect((await api('PATCH', A(), { body: { name: 'x' }, cookie: editor })).status).toBe(403);
     expect((await api('DELETE', A(), { cookie: editor })).status).toBe(403);
     expect((await api('POST', A('/members'), { body: { email: 'stranger@example.com', role: 'viewer' }, cookie: editor })).status).toBe(403);
@@ -59,12 +71,13 @@ describe('cross-board isolation', () => {
     expect((await api('PATCH', A(`/cards/${cardB}`), { body: { title: 'hijack' }, cookie: owner })).status).toBe(404);
     expect((await api('DELETE', A(`/cards/${cardB}`), { cookie: owner })).status).toBe(404);
     const b = await api('GET', `/api/boards/${boardB}`, { cookie: stranger });
+    expect(b.body.cards.length).toBe(1);
     expect(b.body.cards[0].title).toBe('b');
   });
 
   it('board detail never includes another board\'s cards or members', async () => {
     const a = await api('GET', A(), { cookie: owner });
     expect(a.body.cards.map((c) => c.board_id)).toEqual([boardA]);
-    expect(a.body.members.map((m) => m.email)).not.toContain('stranger@example.com');
+    expect(a.body.members.map((m) => m.email).sort()).toEqual(['editor@example.com', 'owner@example.com', 'viewer@example.com']);
   });
 });
