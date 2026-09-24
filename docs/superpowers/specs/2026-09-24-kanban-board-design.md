@@ -24,7 +24,8 @@ In version one:
   columns, reorder within a column.
 
 Out of scope: custom columns, assignees, due dates, password reset,
-email, admin role, Supabase Auth, Row Level Security.
+email, admin role, Supabase Auth, RLS *policies* (RLS itself must stay
+enabled; see Data model).
 
 ## Stack
 
@@ -34,8 +35,9 @@ email, admin role, Supabase Auth, Row Level Security.
 - **Framework:** Hono. Express-like routing and middleware, runs
   natively on Workers.
 - **Database:** Supabase Postgres, accessed from the Worker with
-  `@supabase/supabase-js` using the **service role key**. Row Level
-  Security is disabled on all app tables. The Worker is the only client
+  `@supabase/supabase-js` using the **service role key**, which bypasses
+  Row Level Security. RLS is enabled on all app tables with no policies,
+  so the public anon key gets nothing. The Worker is the only client
   and the only gate. The browser never talks to Supabase directly and
   never sees any Supabase key.
 - **Password hashing:** PBKDF2-SHA256 via the Web Crypto API, 100 000
@@ -114,8 +116,13 @@ cards          id uuid pk, board_id uuid references boards on delete cascade,
 Indexes: `sessions(user_id)`, `board_members(user_id)`,
 `cards(board_id, "column", position)`.
 
-RLS is left disabled on every table. The migration includes a comment
-stating this is intentional because only the service role connects.
+RLS is **enabled with no policies** on every table, and all `anon` and
+`authenticated` grants on the `public` schema are revoked (including
+default privileges for future objects). Supabase exposes `public` through
+PostgREST and the anon key is not a secret, so leaving RLS off would let
+anyone read sessions and password hashes directly. The service role
+bypasses RLS, so the Worker is unaffected. Every new table must enable RLS
+too; `tests/rls.test.js` checks this.
 
 Creating a board inserts the creator into `board_members` as `owner`.
 `boards.owner_id` is kept for convenience but the members row is the
