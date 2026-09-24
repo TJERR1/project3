@@ -93,11 +93,154 @@ async function openBoard(id) {
   go('board', data);
 }
 
+const COLUMNS = [['todo', 'To Do'], ['doing', 'Doing'], ['done', 'Done']];
+const RANK = { viewer: 1, editor: 2, owner: 3 };
+
 views.board = () => {
-  const el = document.createElement('p');
-  el.textContent = 'Board view comes in the next task.';
+  const { board, role, members, cards } = state.board;
+  const can = (min) => RANK[role] >= RANK[min];
+  const el = tpl('tpl-board');
+  const reload = () => openBoard(board.id);
+
+  $('[data-name]', el).textContent = board.name;
+  $('[data-role]', el).textContent = role;
+  $('[data-back]', el).onclick = guard(async (e) => { e.preventDefault(); await loadBoards(); });
+
+  // Owner controls
+  if (can('owner')) {
+    for (const sel of ['[data-rename]', '[data-members-toggle]', '[data-delete]']) $(sel, el).classList.remove('hidden');
+    $('[data-rename]', el).onclick = guard(async () => {
+      const name = prompt('Board name', board.name);
+      if (name === null || name.trim() === '') return;
+      await request('PATCH', `/api/boards/${board.id}`, { name });
+      await reload();
+    });
+    $('[data-delete]', el).onclick = guard(async () => {
+      if (!confirm(`Delete "${board.name}" and all its cards?`)) return;
+      await request('DELETE', `/api/boards/${board.id}`);
+      await loadBoards();
+    });
+    $('[data-members-toggle]', el).onclick = () => $('[data-members-panel]', el).classList.toggle('hidden');
+  } else {
+    $('[data-leave]', el).classList.remove('hidden');
+    $('[data-leave]', el).onclick = guard(async () => {
+      if (!confirm(`Leave "${board.name}"?`)) return;
+      await request('DELETE', `/api/boards/${board.id}/members/me`);
+      await loadBoards();
+    });
+  }
+
+  // Members panel (owner only; the toggle is hidden for others)
+  const memberList = $('[data-members-list]', el);
+  for (const m of members) {
+    const li = document.createElement('li');
+    const email = document.createElement('span');
+    email.textContent = m.email;
+    li.append(email);
+    if (m.role === 'owner') {
+      const pill = document.createElement('span');
+      pill.className = 'pill';
+      pill.textContent = 'owner';
+      li.append(pill);
+    } else {
+      const select = document.createElement('select');
+      for (const r of ['editor', 'viewer']) {
+        const o = new Option(r, r, r === m.role, r === m.role);
+        select.append(o);
+      }
+      select.onchange = guard(async () => {
+        await request('PATCH', `/api/boards/${board.id}/members/${m.user_id}`, { role: select.value });
+        await reload();
+      });
+      const remove = document.createElement('button');
+      remove.className = 'ghost danger';
+      remove.textContent = 'Remove';
+      remove.onclick = guard(async () => {
+        await request('DELETE', `/api/boards/${board.id}/members/${m.user_id}`);
+        await reload();
+      });
+      li.append(select, remove);
+    }
+    memberList.append(li);
+  }
+  $('[data-add-member]', el).onsubmit = guard(async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    await request('POST', `/api/boards/${board.id}/members`, { email: f.get('email'), role: f.get('role') });
+    await reload();
+    $('[data-members-panel]', $('#view')).classList.remove('hidden');
+  });
+
+  // Columns and cards
+  const columnsEl = $('[data-columns]', el);
+  for (const [key, label] of COLUMNS) {
+    const col = tpl('tpl-column');
+    col.dataset.column = key;
+    $('[data-heading]', col).textContent = label;
+    const cardsEl = $('[data-cards]', col);
+    for (const card of cards.filter((c) => c.column === key)) {
+      const node = tpl('tpl-card');
+      node.dataset.id = card.id;
+      $('[data-title]', node).textContent = card.title;
+      $('[data-desc]', node).textContent = card.description;
+      if (can('editor')) {
+        node.draggable = true;
+        node.ondragstart = (e) => { e.dataTransfer.setData('text/plain', card.id); node.classList.add('dragging'); };
+        node.ondragend = () => node.classList.remove('dragging');
+        node.onclick = () => editCard(card, reload);
+      }
+      cardsEl.append(node);
+    }
+    if (can('editor')) {
+      const form = $('[data-add-card]', col);
+      form.classList.remove('hidden');
+      form.onsubmit = guard(async (e) => {
+        e.preventDefault();
+        await request('POST', `/api/boards/${board.id}/cards`, { title: new FormData(e.target).get('title'), column: key });
+        await reload();
+      });
+      col.ondragover = (e) => { e.preventDefault(); col.classList.add('drop-target'); };
+      col.ondragleave = () => col.classList.remove('drop-target');
+      col.ondrop = guard(async (e) => {
+        e.preventDefault();
+        col.classList.remove('drop-target');
+        const id = e.dataTransfer.getData('text/plain');
+        if (!id) return;
+        // Position = number of non-dragged cards whose vertical midpoint is above the pointer.
+        const others = [...cardsEl.querySelectorAll('[data-card]')].filter((n) => n.dataset.id !== id);
+        const position = others.filter((n) => { const r = n.getBoundingClientRect(); return r.top + r.height / 2 < e.clientY; }).length;
+        await request('PATCH', `/api/boards/${board.id}/cards/${id}`, { column: key, position });
+        await reload();
+      });
+    }
+    columnsEl.append(col);
+  }
   return el;
 };
+
+function editCard(card, reload) {
+  const dialog = $('#card-dialog');
+  const form = $('[data-card-form]', dialog);
+  form.elements.title.value = card.title;
+  form.elements.description.value = card.description;
+  const boardId = state.board.board.id;
+  form.onsubmit = guard(async (e) => {
+    e.preventDefault();
+    await request('PATCH', `/api/boards/${boardId}/cards/${card.id}`, {
+      title: form.elements.title.value,
+      description: form.elements.description.value,
+    });
+    dialog.close();
+    await reload();
+  });
+  $('[data-card-cancel]', dialog).onclick = () => dialog.close();
+  $('[data-card-delete]', dialog).onclick = guard(async () => {
+    await request('DELETE', `/api/boards/${boardId}/cards/${card.id}`);
+    dialog.close();
+    await reload();
+  });
+  dialog.showModal();
+}
 
 function render() {
   $('#whoami').textContent = state.user ? state.user.email : '';
