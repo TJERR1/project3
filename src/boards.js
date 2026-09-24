@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { q, readJson, isUuid } from './db.js';
+import { normaliseEmail } from './auth.js';
 
 export const RANK = { viewer: 1, editor: 2, owner: 3 };
 const BOARD_COLS = 'id, name, owner_id, created_at';
@@ -99,5 +100,65 @@ boardRoutes.patch('/:boardId', requireBoardRole('owner'), async (c) => {
 
 boardRoutes.delete('/:boardId', requireBoardRole('owner'), async (c) => {
   await q(c.get('db').from('boards').delete().eq('id', c.get('board').id));
+  return c.body(null, 204);
+});
+
+const MEMBER_ROLES = ['editor', 'viewer'];
+
+boardRoutes.get('/:boardId/members', requireBoardRole('viewer'), async (c) =>
+  c.json({ members: await loadMembers(c.get('db'), c.get('board').id) }),
+);
+
+boardRoutes.post('/:boardId/members', requireBoardRole('owner'), async (c) => {
+  const body = await readJson(c);
+  if (!body) return c.json({ error: 'Invalid JSON body' }, 400);
+  if (!MEMBER_ROLES.includes(body.role)) return c.json({ error: 'Role must be editor or viewer' }, 400);
+  const db = c.get('db');
+  const user = await q(db.from('users').select('id, email').eq('email', normaliseEmail(body.email)).maybeSingle());
+  if (!user) return c.json({ error: 'User not found' }, 404);
+  try {
+    await q(db.from('board_members').insert({ board_id: c.get('board').id, user_id: user.id, role: body.role }));
+  } catch (err) {
+    if (err.code === '23505') return c.json({ error: 'Already a member' }, 409);
+    throw err;
+  }
+  return c.json({ member: { user_id: user.id, email: user.email, role: body.role } }, 201);
+});
+
+boardRoutes.delete('/:boardId/members/me', requireBoardRole('viewer'), async (c) => {
+  if (c.get('role') === 'owner') return c.json({ error: 'Owner cannot leave the board' }, 403);
+  await q(
+    c.get('db').from('board_members').delete().eq('board_id', c.get('board').id).eq('user_id', c.get('user').id),
+  );
+  return c.body(null, 204);
+});
+
+boardRoutes.patch('/:boardId/members/:userId', requireBoardRole('owner'), async (c) => {
+  const userId = c.req.param('userId');
+  if (!isUuid(userId)) return c.json({ error: 'Member not found' }, 404);
+  if (userId === c.get('board').owner_id) return c.json({ error: 'Cannot change the owner' }, 403);
+  const body = await readJson(c);
+  if (!body || !MEMBER_ROLES.includes(body.role)) return c.json({ error: 'Role must be editor or viewer' }, 400);
+  const rows = await q(
+    c.get('db')
+      .from('board_members')
+      .update({ role: body.role })
+      .eq('board_id', c.get('board').id)
+      .eq('user_id', userId)
+      .select('user_id, role, users(email)'),
+  );
+  if (rows.length === 0) return c.json({ error: 'Member not found' }, 404);
+  const r = rows[0];
+  return c.json({ member: { user_id: r.user_id, email: r.users.email, role: r.role } });
+});
+
+boardRoutes.delete('/:boardId/members/:userId', requireBoardRole('owner'), async (c) => {
+  const userId = c.req.param('userId');
+  if (!isUuid(userId)) return c.json({ error: 'Member not found' }, 404);
+  if (userId === c.get('board').owner_id) return c.json({ error: 'Cannot remove the owner' }, 403);
+  const rows = await q(
+    c.get('db').from('board_members').delete().eq('board_id', c.get('board').id).eq('user_id', userId).select('user_id'),
+  );
+  if (rows.length === 0) return c.json({ error: 'Member not found' }, 404);
   return c.body(null, 204);
 });
