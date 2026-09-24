@@ -115,11 +115,19 @@ $('#logout-btn').onclick = guard(async () => {
 $('#home-link').onclick = guard(async (e) => { e.preventDefault(); if (state.user) await loadBoards(); });
 
 guard(async () => {
+  let user = null;
   try {
-    const { user } = await request('GET', '/api/auth/me');
-    state.user = user;
-    await loadBoards();
+    ({ user } = await request('GET', '/api/auth/me'));
   } catch {
-    go('auth');
+    // no valid session
+  }
+  if (!user) { go('auth'); return; }
+  state.user = user;
+  try {
+    await loadBoards();
+  } catch (e) {
+    showError(e.message);
+    state.boards = [];
+    go('boards');
   }
 })();
