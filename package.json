@@ -1,0 +1,21 @@
+{
+  "name": "kanban",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "db:start": "supabase start",
+    "db:reset": "supabase db reset"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.1",
+    "hono": "^4.13.9"
+  },
+  "devDependencies": {
+    "supabase": "^2.117.0",
+    "vitest": "^5.0.1",
+    "wrangler": "^4.137.0"
+  }
+}
