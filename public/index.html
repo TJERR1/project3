@@ -1,3 +1,101 @@
 <!doctype html>
-<title>Kanban</title>
-<p>Coming soon.</p>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kanban</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="#" id="home-link" class="brand">Kanban</a>
+    <span id="whoami" class="muted"></span>
+    <button id="logout-btn" class="ghost hidden">Log out</button>
+  </header>
+  <div id="error" class="banner hidden" role="alert"></div>
+
+  <main id="view"></main>
+
+  <template id="tpl-auth">
+    <section class="card auth">
+      <h1 data-title>Log in</h1>
+      <form data-form>
+        <label>Email <input name="email" type="email" required autocomplete="email"></label>
+        <label>Password <input name="password" type="password" required minlength="8" autocomplete="current-password"></label>
+        <button type="submit" data-submit>Log in</button>
+      </form>
+      <p class="muted"><span data-switch-text>No account?</span> <a href="#" data-switch>Register</a></p>
+    </section>
+  </template>
+
+  <template id="tpl-boards">
+    <section>
+      <h1>Your boards</h1>
+      <form class="inline" data-create>
+        <input name="name" placeholder="New board name" maxlength="200" required>
+        <button type="submit">Create</button>
+      </form>
+      <ul class="board-list" data-list></ul>
+    </section>
+  </template>
+
+  <template id="tpl-board">
+    <section class="board">
+      <div class="board-head">
+        <a href="#" data-back>&larr; Boards</a>
+        <h1 data-name></h1>
+        <span class="pill" data-role></span>
+        <span class="spacer"></span>
+        <button class="ghost hidden" data-rename>Rename</button>
+        <button class="ghost hidden" data-members-toggle>Members</button>
+        <button class="ghost danger hidden" data-leave>Leave board</button>
+        <button class="ghost danger hidden" data-delete>Delete board</button>
+      </div>
+      <aside class="members hidden" data-members-panel>
+        <h2>Members</h2>
+        <ul data-members-list></ul>
+        <form class="inline" data-add-member>
+          <input name="email" type="email" placeholder="teammate@example.com" required>
+          <select name="role"><option value="editor">Editor</option><option value="viewer">Viewer</option></select>
+          <button type="submit">Add</button>
+        </form>
+      </aside>
+      <div class="columns" data-columns></div>
+    </section>
+  </template>
+
+  <template id="tpl-column">
+    <div class="column" data-column>
+      <h2 data-heading></h2>
+      <div class="cards" data-cards></div>
+      <form class="add-card hidden" data-add-card>
+        <input name="title" placeholder="Add a card" maxlength="200" required>
+        <button type="submit">+</button>
+      </form>
+    </div>
+  </template>
+
+  <template id="tpl-card">
+    <article class="kcard" draggable="false" data-card>
+      <h3 data-title></h3>
+      <p class="muted" data-desc></p>
+    </article>
+  </template>
+
+  <dialog id="card-dialog">
+    <form method="dialog" data-card-form>
+      <h2>Edit card</h2>
+      <label>Title <input name="title" maxlength="200" required></label>
+      <label>Description <textarea name="description" rows="4"></textarea></label>
+      <div class="dialog-actions">
+        <button type="button" class="ghost danger" data-card-delete>Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="ghost" data-card-cancel>Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>
