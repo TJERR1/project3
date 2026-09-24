@@ -127,8 +127,9 @@ authority. A board has exactly one owner and ownership does not transfer.
   the user. Duplicate email returns 409.
 - Login verifies the hash, inserts a `sessions` row with a 32-byte random
   hex token, and sets it as an `httpOnly`, `Secure`, `SameSite=Lax`
-  cookie named `sid` with `Path=/`. Wrangler dev serves over HTTP, so
-  `Secure` is omitted when `c.env.DEV` is set.
+  cookie named `sid` with `Path=/`. `Secure` is derived from the request
+  URL's protocol, so it is always set over https and only omitted for
+  plain-http local dev (wrangler dev). No env flag is involved.
 - `requireAuth` middleware reads the cookie, looks up the session joined
   to the user, and sets `c.set('user', ...)`. Missing or unknown session
   returns 401.

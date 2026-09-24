@@ -20,7 +20,6 @@ const vars = loadDevVars();
 export const env = {
   SUPABASE_URL: process.env.SUPABASE_URL ?? vars.SUPABASE_URL,
   SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY ?? vars.SUPABASE_SERVICE_KEY,
-  DEV: '1',
 };
 
 // Deleting every user cascades to sessions, boards, board_members and cards.
@@ -32,7 +31,8 @@ export async function resetDb() {
 
 // api('POST', '/api/auth/login', { body: {...}, cookie: 'sid=...' })
 // api('POST', '/api/x', { rawBody: '{not json' }) sends the string as-is.
-export async function api(method, path, { body, rawBody, cookie } = {}) {
+// api('POST', '/api/x', { origin: 'https://host' }) makes the request as if it arrived over that origin.
+export async function api(method, path, { body, rawBody, cookie, origin } = {}) {
   const headers = {};
   let payload;
   if (rawBody !== undefined) {
@@ -43,7 +43,7 @@ export async function api(method, path, { body, rawBody, cookie } = {}) {
     payload = JSON.stringify(body);
   }
   if (cookie) headers.cookie = cookie;
-  const res = await app.request(path, { method, headers, body: payload }, env);
+  const res = await app.request(origin ? origin + path : path, { method, headers, body: payload }, env);
   const text = await res.text();
   let json = null;
   try { json = JSON.parse(text); } catch { /* empty body */ }
