@@ -70,7 +70,11 @@ boardRoutes.post('/', async (c) => {
   try {
     await q(db.from('board_members').insert({ board_id: board.id, user_id: user.id, role: 'owner' }));
   } catch (err) {
-    await db.from('boards').delete().eq('id', board.id); // compensate; ignore its own error
+    try {
+      await db.from('boards').delete().eq('id', board.id); // best-effort compensation
+    } catch {
+      /* best effort */
+    }
     throw err;
   }
   return c.json({ board }, 201);
