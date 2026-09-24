@@ -76,7 +76,7 @@ views.boards = () => {
     a.innerHTML = `<strong></strong><br><span class="pill"></span>`;
     $('strong', a).textContent = b.name;
     $('.pill', a).textContent = b.role;
-    a.onclick = guard(async (e) => { e.preventDefault(); await openBoard(b.id); });
+    a.onclick = guard(async (e) => { e.preventDefault(); membersOpen = false; await openBoard(b.id); });
     li.append(a);
     list.append(li);
   }
@@ -95,6 +95,7 @@ async function openBoard(id) {
 
 const COLUMNS = [['todo', 'To Do'], ['doing', 'Doing'], ['done', 'Done']];
 const RANK = { viewer: 1, editor: 2, owner: 3 };
+let membersOpen = false;
 
 views.board = () => {
   const { board, role, members, cards } = state.board;
@@ -109,6 +110,7 @@ views.board = () => {
   // Owner controls
   if (can('owner')) {
     for (const sel of ['[data-rename]', '[data-members-toggle]', '[data-delete]']) $(sel, el).classList.remove('hidden');
+    $('[data-members-panel]', el).classList.toggle('hidden', !membersOpen);
     $('[data-rename]', el).onclick = guard(async () => {
       const name = prompt('Board name', board.name);
       if (name === null || name.trim() === '') return;
@@ -120,7 +122,10 @@ views.board = () => {
       await request('DELETE', `/api/boards/${board.id}`);
       await loadBoards();
     });
-    $('[data-members-toggle]', el).onclick = () => $('[data-members-panel]', el).classList.toggle('hidden');
+    $('[data-members-toggle]', el).onclick = () => {
+      membersOpen = !membersOpen;
+      $('[data-members-panel]', $('#view')).classList.toggle('hidden', !membersOpen);
+    };
   } else {
     $('[data-leave]', el).classList.remove('hidden');
     $('[data-leave]', el).onclick = guard(async () => {
@@ -167,8 +172,8 @@ views.board = () => {
     e.preventDefault();
     const f = new FormData(e.target);
     await request('POST', `/api/boards/${board.id}/members`, { email: f.get('email'), role: f.get('role') });
+    membersOpen = true;
     await reload();
-    $('[data-members-panel]', $('#view')).classList.remove('hidden');
   });
 
   // Columns and cards
